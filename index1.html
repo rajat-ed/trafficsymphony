@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Symphony - By Rajat</title>
+<style>
+  :root { --bg:#1a1a1a; --card:#2b2b2b; --card2:#333; --text:#e6e6e6; --muted:#8a8a8a; --accent:#1f6aa5; --accent-h:#144870; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+         font-family:Arial, Helvetica, sans-serif; display:flex; flex-direction:column;
+         align-items:center; justify-content:center; padding:16px; }
+  .card { background:var(--card); border-radius:12px; padding:28px 32px; width:100%; max-width:480px; text-align:center; }
+  h1 { font-family:Impact, "Arial Black", sans-serif; font-weight:normal; letter-spacing:1px; font-size:28px; margin:0 0 4px; }
+  .sub { font-size:12px; margin-bottom:20px; color:#ccc; }
+  .box { background:var(--card2); border-radius:8px; padding:14px 16px; margin-bottom:18px; }
+  .box label { display:block; margin-bottom:10px; font-size:14px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  select { width:100%; padding:8px; background:#444; color:var(--text); border:0; border-radius:6px; font-size:14px; }
+  .chk { display:flex; align-items:center; justify-content:center; gap:10px; margin:6px 0 20px; font-size:14px; cursor:pointer; }
+  .chk input { width:18px; height:18px; accent-color:var(--accent); }
+  button, .btn { background:var(--accent); color:#fff; border:0; border-radius:8px; font-size:15px; padding:11px 0;
+                 width:230px; cursor:pointer; margin:6px 0; display:inline-block; text-decoration:none; }
+  button:hover, .btn:hover { background:var(--accent-h); }
+  button.stop { background:#a33; } button.stop:hover { background:#7d2626; }
+  button.ghost { background:#444; } button.ghost:hover { background:#555; }
+  .info { color:var(--muted); font-size:13px; margin-top:16px; }
+  .err { color:#ff6b6b; font-size:13px; margin-top:10px; min-height:1em; }
+  #stage, #result { width:100%; max-width:820px; text-align:center; }
+  #stage[hidden], #result[hidden], #menu[hidden] { display:none; }
+  canvas { width:100%; max-width:800px; height:auto; background:#000; border-radius:8px; display:block; margin:0 auto; }
+  .bar { display:flex; gap:14px; align-items:center; justify-content:center; margin-top:12px; font-size:14px; flex-wrap:wrap; }
+  .bar button { width:auto; padding:9px 26px; margin:0; }
+  .rec { color:#ff5555; font-weight:bold; }
+  #result video { width:100%; max-width:800px; border-radius:8px; background:#000; }
+</style>
+</head>
+<body>
+
+<div id="menu" class="card">
+  <h1>TRAFFIC SYMPHONY</h1>
+  <div class="sub">Designed by Rajat</div>
+
+  <div class="box">
+    <label id="lblSeg">Number of Notes (Segments): 12</label>
+    <input type="range" id="slider" min="4" max="12" step="1" value="12">
+  </div>
+
+  <div class="box">
+    <label id="lblSpd">Video Speed: 1x</label>
+    <input type="range" id="spdSlider" min="0.25" max="2" step="0.25" value="1">
+  </div>
+
+  <div class="box">
+    <label for="scaleSel">Music Scale</label>
+    <select id="scaleSel"></select>
+    <label for="rootSel" style="margin-top:10px">Key</label>
+    <select id="rootSel"></select>
+  </div>
+
+  <label class="chk"><input type="checkbox" id="chkRec"> Record &amp; Export Video</label>
+
+  <button id="btnCam">Start Webcam Feed</button><br>
+  <button id="btnVid">Load Video File</button>
+  <input type="file" id="fileIn" accept="video/*,.mp4,.avi,.mov,.webm,.mkv" hidden>
+
+  <div class="info">Press 'Q' to Stop/Export</div>
+  <div class="err" id="err"></div>
+</div>
+
+<div id="stage" hidden>
+  <canvas id="cv" width="800" height="600"></canvas>
+  <div class="bar">
+    <span id="status"></span>
+    <button class="stop" id="btnStop">Finish (Q)</button>
+  </div>
+</div>
+
+<div id="result" hidden>
+  <div class="card" style="max-width:820px">
+    <h1 style="font-size:22px">Export ready</h1>
+    <video id="resVid" controls playsinline></video><br>
+    <a class="btn" id="dl">Download video</a><br>
+    <button class="ghost" id="btnBack">Back to menu</button>
+    <div class="info" id="resNote"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Config ----------
+  const W = 800, H = 600;
+  const ROI_H = H >> 2, ROI_Y = H - ROI_H;       // bottom 25%
+  const MOTION_THRESHOLD = 500;
+  const COOLDOWN = 0.3;                          // seconds
+  const FPS = 30;
+
+  // ---------- Scales ----------
+  const SCALES = {
+    'Major Pentatonic': [0,2,4,7,9],
+    'Minor Pentatonic': [0,3,5,7,10],
+    'Major': [0,2,4,5,7,9,11],
+    'Natural Minor': [0,2,3,5,7,8,10],
+    'Dorian': [0,2,3,5,7,9,10],
+    'Lydian': [0,2,4,6,7,9,11],
+    'Harmonic Minor': [0,2,3,5,7,8,11],
+    'Blues': [0,3,5,6,7,10],
+    'Raga Bhairav': [0,1,4,5,7,8,11],
+    'Chromatic': [0,1,2,3,4,5,6,7,8,9,10,11]
+  };
+  const KEYS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const BASE_C = 261.63;
+
+  function buildFreqs(scaleName, keyIdx, count) {
+    const steps = SCALES[scaleName];
+    const k = keyIdx > 6 ? keyIdx - 12 : keyIdx;   // keep the range near middle C
+    return Array.from({ length: count }, (_, i) => {
+      const oct = Math.floor(i / steps.length);
+      return BASE_C * Math.pow(2, (k + steps[i % steps.length] + 12 * oct) / 12);
+    });
+  }
+
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
+
+  // ---------- Audio synth ----------
+  let actx, master, recDest, buffers = [];
+
+  function initAudio() {
+    if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try { actx = new AC({ sampleRate: 44100 }); } catch (e) { actx = new AC(); }
+    master = actx.createGain();
+    const comp = actx.createDynamicsCompressor();   // keeps overlapping notes from clipping
+    recDest = actx.createMediaStreamDestination();
+    master.connect(comp);
+    comp.connect(actx.destination);
+    comp.connect(recDest);
+  }
+
+  function buildBuffers(freqs) {
+    const sr = actx.sampleRate, n = sr; // 1 second
+    buffers = freqs.map(f => {
+      const b = actx.createBuffer(1, n, sr), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const w = 2 * Math.PI * f * t;
+        const attack = Math.min(1, t / 0.005);   // 5 ms fade-in removes the start click
+        d[i] = attack * 0.4 * (
+          Math.sin(w)     * Math.exp(-3 * t) +          // fundamental
+          Math.sin(2 * w) * Math.exp(-5 * t) * 0.35 +   // 2nd harmonic: warmth
+          Math.sin(3 * w) * Math.exp(-8 * t) * 0.12     // 3rd harmonic: mallet attack
+        );
+      }
+      return b;
+    });
+  }
+
+  function playNote(i) {
+    const src = actx.createBufferSource();
+    src.buffer = buffers[i % buffers.length];
+    src.connect(master);
+    src.start();
+  }
+
+  // ---------- Image processing (grayscale -> gaussian 21x21 -> absdiff -> thresh 25 -> dilate x2) ----------
+  const N = W * ROI_H;
+  const gray = new Uint8Array(N), blurred = new Uint8Array(N);
+  const tmpF = new Float32Array(N), padRow = new Float32Array(W + 20), acc = new Float32Array(W);
+  const maskA = new Uint8Array(N), maskB = new Uint8Array(N);
+  let prev = null;
+
+  // OpenCV-style kernel: ksize 21, sigma = 0.3*((21-1)*0.5-1)+0.8 = 3.5
+  const R = 10, K = new Float32Array(21);
+  (() => { const s = 3.5; let sum = 0;
+    for (let i = -R; i <= R; i++) { K[i + R] = Math.exp(-(i * i) / (2 * s * s)); sum += K[i + R]; }
+    for (let i = 0; i < 21; i++) K[i] /= sum; })();
+
+  function toGray(rgba) {
+    for (let i = 0, p = 0; i < N; i++, p += 4)
+      gray[i] = (rgba[p] * 299 + rgba[p + 1] * 587 + rgba[p + 2] * 114) / 1000;
+  }
+
+  function gaussBlur(src, dst) {
+    for (let y = 0; y < ROI_H; y++) {
+      const b = y * W;
+      for (let x = 0; x < W; x++) padRow[R + x] = src[b + x];
+      for (let k = 1; k <= R; k++) { padRow[R - k] = src[b + k]; padRow[R + W - 1 + k] = src[b + W - 1 - k]; }
+      for (let x = 0; x < W; x++) {
+        let s = 0;
+        for (let k = 0; k < 21; k++) s += padRow[x + k] * K[k];
+        tmpF[b + x] = s;
+      }
+    }
+    for (let y = 0; y < ROI_H; y++) {
+      acc.fill(0);
+      for (let k = -R; k <= R; k++) {
+        let yy = y + k;
+        if (yy < 0) yy = -yy; else if (yy >= ROI_H) yy = 2 * ROI_H - 2 - yy;
+        const off = yy * W, kv = K[k + R];
+        for (let x = 0; x < W; x++) acc[x] += tmpF[off + x] * kv;
+      }
+      const o = y * W;
+      for (let x = 0; x < W; x++) dst[o + x] = acc[x] + 0.5;
+    }
+  }
+
+  // Two 3x3 dilations == one 5x5 square. Horizontal pass m -> tmp, vertical pass tmp -> m.
+  function dilate5(m, tmp) {
+    for (let y = 0; y < ROI_H; y++) {
+      const b = y * W;
+      for (let x = 0; x < W; x++) {
+        let v = 0;
+        for (let k = -2; k <= 2; k++) { const xx = x + k; if (xx >= 0 && xx < W && m[b + xx]) { v = 1; break; } }
+        tmp[b + x] = v;
+      }
+    }
+    for (let y = 0; y < ROI_H; y++) {
+      const b = y * W;
+      for (let x = 0; x < W; x++) {
+        let v = 0;
+        for (let k = -2; k <= 2; k++) { const yy = y + k; if (yy >= 0 && yy < ROI_H && tmp[yy * W + x]) { v = 1; break; } }
+        m[b + x] = v;
+      }
+    }
+  }
+
+  function countCols(m, xs, xe) {
+    let c = 0;
+    for (let y = 0; y < ROI_H; y++) { const b = y * W; for (let x = xs; x < xe; x++) c += m[b + x]; }
+    return c;
+  }
+
+  // ---------- Session state ----------
+  let running = false, video = null, stream = null, objUrl = null;
+  let numSeg = 12, record = false;
+  let lastPlayed = [], frameCount = 0, rafId = 0, rvfcId = 0;
+  let recorder = null, chunks = [], recMime = '';
+
+  // MP4 only
+  function pickMime() {
+    const list = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2',
+                  'video/mp4;codecs=avc3.42E01E,mp4a.40.2', 'video/mp4'];
+    return list.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  }
+
+  async function start(source) {
+    $('err').textContent = '';
+    numSeg = +$('slider').value;
+    record = $('chkRec').checked;
+    initAudio();
+    buildBuffers(buildFreqs($('scaleSel').value, +$('rootSel').value, numSeg));
+
+    video = document.createElement('video');
+    const rate = source === 'cam' ? 1 : +$('spdSlider').value;
+    video.muted = true; video.playsInline = true;
+    video.defaultPlaybackRate = video.playbackRate = rate;
+    video.addEventListener('ratechange', () => { if (video && video.playbackRate !== rate) video.playbackRate = rate; });
+    video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none';
+    document.body.appendChild(video);
+
+    try {
+      if (source === 'cam') {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 800, height: 600 }, audio: false });
+        video.srcObject = stream;
+      } else {
+        objUrl = URL.createObjectURL(source);
+        video.src = objUrl;
+      }
+      await video.play();
+      video.playbackRate = rate;
+    } catch (e) {
+      cleanupSource();
+      $('err').textContent = source === 'cam'
+        ? 'Could not open webcam: ' + e.message + ' (needs https or localhost)'
+        : 'Could not play that video: ' + e.message;
+      return;
+    }
+
+    prev = null; frameCount = 0;
+    lastPlayed = new Array(numSeg).fill(0);
+    lastTriggered = []; newFrame = false;
+    chunks = []; recorder = null;
+
+    recMime = pickMime();
+    if (record && recMime) {
+      const vs = cv.captureStream(FPS);
+      const ms = new MediaStream([...vs.getVideoTracks(), ...recDest.stream.getAudioTracks()]);
+      try {
+        recorder = new MediaRecorder(ms, { mimeType: recMime, videoBitsPerSecond: 5e6 });
+        recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        recorder.start(250);
+      } catch (e) {
+        recorder = null;
+        $('err').textContent = 'Recording not supported in this browser; continuing without it.';
+      }
+    }
+
+    $('menu').hidden = true; $('result').hidden = true; $('stage').hidden = false;
+    $('status').innerHTML = (recorder ? '<span class="rec">● REC</span> &nbsp;' : '') +
+      numSeg + ' segments · ' + $('scaleSel').value + ' in ' + KEYS[+$('rootSel').value] +
+      (source === 'cam' ? '' : ' · ' + $('spdSlider').value + 'x');
+    running = true;
+    video.addEventListener('ended', finish, { once: true });
+    console.log(`--- Started Processing with ${numSeg} Segments ---`);
+    schedule();
+  }
+
+  let lastTriggered = [], newFrame = false;
+
+  function schedule() {
+    if (!running) return;
+    if (video.requestVideoFrameCallback) {
+      const onF = () => { newFrame = true; if (running && video) rvfcId = video.requestVideoFrameCallback(onF); };
+      rvfcId = video.requestVideoFrameCallback(onF);
+    }
+    const loop = () => {
+      if (!running) return;
+      step(!video.requestVideoFrameCallback || newFrame);   // detect only on new video frames
+      newFrame = false;
+      rafId = requestAnimationFrame(loop);                  // canvas redraws steadily, so recording keeps full length at any speed
+    };
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // ---------- One frame ----------
+  function step(detect) {
+    ctx.globalAlpha = 1;
+    ctx.drawImage(video, 0, 0, W, H);
+    const segW = Math.floor(W / numSeg);
+
+    if (detect) {
+      toGray(ctx.getImageData(0, ROI_Y, W, ROI_H).data);
+      gaussBlur(gray, blurred);
+      const nowLive = performance.now() / 1000;
+      const triggered = [];
+      if (prev) {
+        for (let i = 0; i < N; i++) maskA[i] = Math.abs(blurred[i] - prev[i]) > 25 ? 1 : 0;
+        dilate5(maskA, maskB);
+        for (let i = 0; i < numSeg; i++) {
+          const xs = i * segW, xe = (i + 1) * segW;
+          if (countCols(maskA, xs, xe) > MOTION_THRESHOLD) {
+            if (nowLive - lastPlayed[i] > COOLDOWN) {
+              playNote(i);
+              lastPlayed[i] = nowLive;
+              triggered.push(i);
+            } else if (nowLive - lastPlayed[i] < 0.2) {
+              triggered.push(i);
+            }
+          }
+        }
+      }
+      prev = prev || new Uint8Array(N);
+      prev.set(blurred);
+      lastTriggered = triggered;
+    }
+
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#00ff00';
+    for (const i of lastTriggered) ctx.fillRect(i * segW, ROI_Y, segW, ROI_H);
+    ctx.fillStyle = '#ffff00'; ctx.fillRect(0, ROI_Y - 1, W, 2);
+    ctx.fillStyle = '#646464';
+    for (let i = 0; i < numSeg; i++) ctx.fillRect(i * segW, ROI_Y, 1, ROI_H);
+
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial, sans-serif'; ctx.textBaseline = 'alphabetic';
+    const brand = 'traffic symphony by rajat';
+    ctx.fillText(brand, W - ctx.measureText(brand).width - 10, 30);
+
+    ctx.globalAlpha = 1;
+    ctx.font = '13px Arial, sans-serif';
+    ctx.fillText("Press 'q' to Finish", 10, H - 10);
+
+    frameCount++;
+  }
+
+  // ---------- Finish / export ----------
+  function cleanupSource() {
+    if (rvfcId && video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(rvfcId);
+    cancelAnimationFrame(rafId);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (video) { video.pause(); video.removeAttribute('src'); video.srcObject = null; video.remove(); }
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    stream = null; objUrl = null; video = null;
+  }
+
+  function finish() {
+    if (!running) return;
+    running = false;
+    cleanupSource();
+
+    if (recorder && recorder.state !== 'inactive') {
+      $('status').textContent = 'Finalizing export...';
+      $('btnStop').disabled = true;
+      // let the last notes ring out (they decay over 1 s)
+      setTimeout(() => {
+        recorder.onstop = () => showResult();
+        try { recorder.requestData(); } catch (e) {}
+        recorder.stop();
+      }, 1100);
+    } else {
+      backToMenu();
+    }
+  }
+
+  function showResult() {
+    const type = (recorder.mimeType || recMime || 'video/mp4').split(';')[0];
+    const ext = type.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type });
+    const url = URL.createObjectURL(blob);
+    const name = `TrafficSymphony_Export_${Math.floor(Date.now() / 1000)}.${ext}`;
+    $('resVid').src = url;
+    $('dl').href = url; $('dl').download = name;
+    $('resNote').textContent = `Saved as ${name} (${(blob.size / 1048576).toFixed(1)} MB)`;
+    $('stage').hidden = true; $('result').hidden = false;
+    $('btnStop').disabled = false;
+    $('dl').click();     // auto-save, like the desktop version
+  }
+
+  function backToMenu() {
+    $('stage').hidden = true; $('result').hidden = true; $('menu').hidden = false;
+    $('btnStop').disabled = false;
+    const rv = $('resVid'); rv.pause(); rv.removeAttribute('src');
+  }
+
+  // ---------- UI wiring ----------
+  Object.keys(SCALES).forEach(n => $('scaleSel').add(new Option(n, n)));
+  KEYS.forEach((k, i) => $('rootSel').add(new Option(k, i)));
+  if (!pickMime()) {
+    $('chkRec').disabled = true;
+    $('chkRec').parentElement.append(' (MP4 not supported in this browser)');
+  }
+
+  $('slider').addEventListener('input', e =>
+    $('lblSeg').textContent = `Number of Notes (Segments): ${e.target.value}`);
+  $('spdSlider').addEventListener('input', e =>
+    $('lblSpd').textContent = `Video Speed: ${e.target.value}x`);
+  $('btnCam').addEventListener('click', () => start('cam'));
+  $('btnVid').addEventListener('click', () => $('fileIn').click());
+  $('fileIn').addEventListener('change', e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (f) start(f);
+  });
+  $('btnStop').addEventListener('click', finish);
+  $('btnBack').addEventListener('click', backToMenu);
+  document.addEventListener('keydown', e => {
+    if (running && (e.key === 'q' || e.key === 'Q' || e.key === 'Escape')) finish();
+  });
+})();
+</script>
+</body>
+</html>
