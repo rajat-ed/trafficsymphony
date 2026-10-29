@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Symphony - By Rajat</title>
+<style>
+:root{--bg:#0e1015;--p:#171a22;--t:#e8eaf0;--m:#8b90a0;--a:#6c8cff;--a2:#b06cff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--t);font:14px/1.4 system-ui,"Segoe UI",Arial,sans-serif;background:radial-gradient(1200px 600px at 20% -10%,#1b2140,var(--bg))}
+header{display:flex;align-items:center;gap:10px;padding:14px 22px;flex-wrap:wrap}
+header b{font:24px Impact,"Arial Black",sans-serif;letter-spacing:2px;background:linear-gradient(90deg,var(--a),var(--a2));-webkit-background-clip:text;background-clip:text;color:transparent}
+header span{color:var(--m);font-size:12px}
+.modes{margin-left:auto;display:flex;background:#262b3a;border-radius:10px;padding:3px}
+.modes button{background:none;padding:6px 18px;font-size:13px;border-radius:8px;color:var(--m)}
+.modes button.on{background:linear-gradient(90deg,var(--a),var(--a2));color:#fff}
+#app{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;padding:0 22px 22px;max-width:1300px;margin:auto}
+@media(max-width:900px){#app{grid-template-columns:1fr}}
+#stage{position:relative;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px #0009}
+canvas{width:100%;height:auto;display:block;cursor:pointer}
+#idle,#result{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0b0d12ee;text-align:center;padding:16px}
+[hidden]{display:none!important}
+#idle h2,#result h2{margin:0;font-weight:600}
+.hint{color:var(--m);font-size:12px}
+.err{color:#ff6b6b;font-size:13px;min-height:1em}
+button,.btn{background:linear-gradient(90deg,var(--a),var(--a2));color:#fff;border:0;border-radius:10px;font-size:15px;padding:11px 26px;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{filter:brightness(1.15)}
+button.stop{background:#a33}button.ghost{background:#3a3f50}
+.modes button.on:hover{filter:none}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:10px;flex-wrap:wrap;min-height:40px}
+.rec{color:#ff5555;font-weight:bold}
+#result video{max-width:90%;max-height:58%;border-radius:8px;background:#000}
+#panel{background:var(--p);border-radius:14px;padding:8px 16px;max-height:calc(100vh - 80px);overflow:auto}
+details{border-bottom:1px solid #2a2f3f;padding:8px 0}
+details:last-child{border:0}
+summary{cursor:pointer;font-weight:600;color:var(--a);padding:4px 0}
+.row{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.row label{display:flex;justify-content:space-between;color:var(--m);font-size:12px}
+.row label b{color:var(--t);font-weight:600}
+.row.chk{flex-direction:row;align-items:center;gap:8px}
+.row.chk label{color:var(--t);font-size:13px}
+select{width:100%;padding:8px;background:#262b3a;color:var(--t);border:0;border-radius:8px;font-size:14px}
+input[type=range]{width:100%;accent-color:var(--a)}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--a)}
+#panel.normal summary{display:none}
+#panel.normal details{border:0;padding:0}
+#panel.normal .row:not(.s){display:none}
+#panel.normal .row label{font-size:13px}
+/* ---- 8-bit black & white theme ---- */
+:root{--bg:#000;--p:#000;--t:#fff;--m:#bbb;--a:#fff;--a2:#fff}
+*{border-radius:0!important;font-family:"Courier New",Courier,monospace!important}
+body{background:#000;color:#fff;font-size:14px;text-transform:uppercase;letter-spacing:1px}
+header b{background:none;-webkit-background-clip:initial;background-clip:initial;color:#fff;font-size:22px;font-weight:bold;letter-spacing:4px}
+header span{color:#bbb}
+.modes{background:#000;border:2px solid #fff;padding:0}
+.modes button{background:#000;color:#fff;box-shadow:none;border:0;padding:6px 16px}
+.modes button.on{background:#fff;color:#000}
+button,.btn{background:#000;color:#fff;border:2px solid #fff;box-shadow:4px 4px 0 #fff;font-size:14px;font-weight:bold;text-transform:uppercase;letter-spacing:1px}
+button:hover,.btn:hover{background:#fff;color:#000;filter:none}
+.modes button:hover{box-shadow:none}
+button.stop,button.ghost{background:#000}
+button.stop:hover,button.ghost:hover{background:#fff}
+#stage{border:3px solid #fff;box-shadow:6px 6px 0 #fff}
+canvas{image-rendering:pixelated}
+#idle,#result{background:#000f}
+.hint,.err{color:#bbb}
+.rec{color:#fff;animation:bl 1s steps(2) infinite}
+@keyframes bl{50%{opacity:0}}
+#result video{border:2px solid #fff}
+#panel{border:3px solid #fff;box-shadow:6px 6px 0 #fff}
+details{border-bottom:2px dashed #fff}
+summary{color:#fff}
+.row label,.row label b{color:#fff}
+select{background:#000;color:#fff;border:2px solid #fff;text-transform:uppercase}
+input[type=range]{accent-color:#fff}
+input[type=checkbox]{accent-color:#fff}
+/* ---- pixel-button gray palette ---- */
+:root{--bg:#dcdcdc;--p:#c8c8c8;--t:#222;--m:#555;--a:#3a3a3a;--a2:#3a3a3a}
+body{background:#dcdcdc;color:#222}
+header b{color:#222}
+header span,.hint{color:#555}
+.err{color:#222}
+.rec{color:#222}
+.modes{background:#c8c8c8;border:2px solid #3a3a3a;padding:3px;gap:3px;box-shadow:inset 2px 2px 0 #fff,inset -2px -2px 0 #888}
+button,.btn,.modes button,button.stop,button.ghost{background:#c8c8c8;color:#222;border:2px solid #3a3a3a;box-shadow:inset 2px 2px 0 #fff,inset -2px -2px 0 #888}
+.modes button{padding:4px 14px}
+button:hover,.btn:hover,button.stop:hover,button.ghost:hover,.modes button:hover{background:#dedede;color:#222;filter:none;box-shadow:inset 2px 2px 0 #fff,inset -2px -2px 0 #888}
+button:active,.btn:active{background:#b4b4b4;box-shadow:inset 2px 2px 0 #777,inset -2px -2px 0 #e0e0e0}
+.modes button.on,.modes button.on:hover{background:#9a9a9a;color:#222;box-shadow:inset 2px 2px 0 #666,inset -2px -2px 0 #bbb}
+#stage{border:3px solid #3a3a3a;box-shadow:5px 5px 0 #888}
+#idle,#result{background:#c8c8c8f2;color:#222}
+#result video{border:2px solid #3a3a3a}
+#panel{background:#c8c8c8;border:3px solid #3a3a3a;box-shadow:inset 3px 3px 0 #fff,inset -3px -3px 0 #888,5px 5px 0 #888}
+details{border-bottom:2px dashed #888}
+summary,.row label,.row label b{color:#222}
+select{background:#e4e4e4;color:#222;border:2px solid #3a3a3a;box-shadow:inset 2px 2px 0 #888}
+input[type=range],input[type=checkbox]{accent-color:#3a3a3a}
+</style>
+</head>
+<body>
+<header>
+  <b>TRAFFIC SYMPHONY</b><span>designed by Rajat</span>
+  <div class="modes"><button id="mNormal">Normal</button><button id="mPro">Pro</button></div>
+</header>
+<div id="app">
+  <section>
+    <div id="stage">
+      <canvas id="cv" width="800" height="600"></canvas>
+      <div id="idle">
+        <h2>Turn motion into music</h2>
+        <div class="hint">Pick a source. Click a zone while playing to mute it. Video files loop until you stop. Drop a video file here too.</div>
+        <button id="btnCam">Start Webcam</button>
+        <button id="btnVid" class="ghost">Load Video File</button>
+        <input type="file" id="fileIn" accept="video/*,.mp4,.avi,.mov,.webm,.mkv" hidden>
+        <div class="err" id="msg"></div>
+      </div>
+      <div id="result" hidden>
+        <h2>Export ready</h2>
+        <video id="resVid" controls playsinline></video>
+        <a class="btn" id="dl">Download MP4</a>
+        <button class="ghost" id="btnBack">Back</button>
+        <div class="hint" id="resNote"></div>
+      </div>
+    </div>
+    <div class="bar"><span id="status"></span><button class="stop" id="btnStop" hidden>Stop (Q)</button></div>
+  </section>
+  <aside id="panel">
+    <div class="row s"><label>Preset</label><select id="preset"></select></div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const W = 800, H = 600, FPS = 30, BASE_C = 261.63, TAU = Math.PI * 2;
+  const MAXN = W * Math.round(H * 0.5);
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
+  const sin = Math.sin, exp = Math.exp;
+
+  // ---------- Music data ----------
+  const SCALES = {
+    'Major Pentatonic':[0,2,4,7,9], 'Minor Pentatonic':[0,3,5,7,10], 'Major':[0,2,4,5,7,9,11],
+    'Natural Minor':[0,2,3,5,7,8,10], 'Dorian':[0,2,3,5,7,9,10], 'Lydian':[0,2,4,6,7,9,11],
+    'Harmonic Minor':[0,2,3,5,7,8,11], 'Blues':[0,3,5,6,7,10], 'Raga Bhairav':[0,1,4,5,7,8,11],
+    'Hirajoshi':[0,2,3,7,8], 'Whole Tone':[0,2,4,6,8,10], 'Chromatic':[0,1,2,3,4,5,6,7,8,9,10,11]
+  };
+  const KEYS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const QS = ['Off','1/8 note','1/16 note'];
+
+  // [duration s, sample fn(freq, t)]; Harp uses Karplus-Strong (fn = null)
+  const INST = {
+    'Piano':[3.5,(f,t)=>{
+      const w=TAU*f*t, dk=.5+f/600; let s=0;
+      for(let k=1;k<=8;k++){const fk=k*Math.sqrt(1+.0004*k*k);
+        s+=(sin(fk*w)+sin(fk*w*1.0006))/Math.pow(k,1.15)*exp(-(.7+.9*k)*dk*t);}
+      return s}],
+    'Strings':[3.5,(f,t)=>{
+      const w=TAU*f*t+.0011*f*sin(TAU*5.3*t)*Math.min(1,t/.7); let s=0;
+      for(let k=1;k<=8;k++)s+=(sin(k*w)+sin(k*w*1.004)+sin(k*w*.996))/k;
+      return s*Math.min(1,t/.22)*exp(-.55*t)}],
+    'Theremin':[3,(f,t)=>{
+      const w=TAU*(f*t-.004*f*(1-exp(-10*t)))+.0023*f*sin(TAU*5.6*t)*Math.min(1,t/.5);
+      return (sin(w)+.12*sin(2*w)+.04*sin(3*w))*Math.min(1,t/.1)*exp(-.6*t)}],
+    'Marimba':[1.5,(f,t)=>{const w=TAU*f*t;return sin(w)*exp(-4*t)+.4*sin(4*w)*exp(-9*t)+.1*sin(10*w)*exp(-22*t)}],
+    'Kalimba':[2,(f,t)=>{const w=TAU*f*t;return sin(w)*exp(-3.5*t)+.2*sin(2*w)*exp(-5*t)+.3*sin(5.4*w)*exp(-16*t)}],
+    'E-Piano':[2,(f,t)=>{const w=TAU*f*t;return sin(w+1.6*exp(-5*t)*sin(w))*exp(-2.4*t)+.15*sin(2*w)*exp(-4*t)}],
+    'Bell':[3.5,(f,t)=>{const w=TAU*f*t;return sin(w)*exp(-1.3*t)+.6*sin(2.76*w)*exp(-2.2*t)+.4*sin(5.4*w)*exp(-3.2*t)+.25*sin(8.93*w)*exp(-4.5*t)}],
+    'Handpan':[2.5,(f,t)=>{const w=TAU*f*t;return sin(w)*exp(-2.2*t)+.5*sin(2*w)*exp(-3*t)+.3*sin(3*w)*exp(-3.5*t)+.1*sin(w*1.004)*exp(-1.2*t)}],
+    'Singing Bowl':[4,(f,t)=>{const w=TAU*f*t;return Math.min(1,t/.04)*(sin(w)*exp(-.9*t)+sin(w*1.004)*exp(-.9*t)+.35*sin(2.71*w)*exp(-1.6*t)+.15*sin(5.1*w)*exp(-2.4*t))}],
+    'Pad':[3,(f,t)=>{const w=TAU*f*t;let s=0;for(let k=1;k<=6;k++)s+=(sin(k*w*1.002)+sin(k*w*.998))/k;return s*Math.min(1,t/.15)*exp(-1.1*t)}],
+    'Synth Pluck':[1.2,(f,t)=>{const w=TAU*f*t;return(sin(w)+.33*sin(3*w)+.2*sin(5*w)+.14*sin(7*w))*exp(-5*t)}],
+    'Harp':[2.5,null]
+  };
+
+  const PRE = {
+    'Zen Garden':{inst:'Singing Bowl',scale:'Major Pentatonic',key:'D',oct:0,rev:60,q:'1/8 note',bpm:70,cd:400,chord:false},
+    'Music Box':{inst:'Kalimba',scale:'Lydian',key:'G',oct:1,rev:35,q:'Off',chord:false},
+    'Night City':{inst:'E-Piano',scale:'Natural Minor',key:'A',oct:0,rev:45,q:'1/8 note',bpm:90,chord:true},
+    'Himalaya':{inst:'Handpan',scale:'Raga Bhairav',key:'C',oct:0,rev:50,q:'Off',chord:false},
+    'Arcade':{inst:'Synth Pluck',scale:'Major Pentatonic',key:'C',oct:1,rev:15,q:'1/16 note',bpm:140,cd:150,chord:false},
+    'Temple Harp':{inst:'Harp',scale:'Hirajoshi',key:'E',oct:0,rev:40,q:'Off',chord:false},
+    'Concert Piano':{inst:'Piano',scale:'Major',key:'C',oct:0,rev:30,q:'Off',chord:false},
+    'Cinematic Strings':{inst:'Strings',scale:'Natural Minor',key:'D',oct:0,rev:55,q:'Off',cd:350,chord:true},
+    'Sci-Fi':{inst:'Theremin',scale:'Whole Tone',key:'C',oct:1,rev:65,q:'Off',cd:300,chord:false}
+  };
+
+  // ---------- Controls (built from this table) ----------
+  const SIMPLE = new Set(['inst','scale','key','vol','sens','spd','rec']);   // shown in Normal mode (plus Preset)
+  const CTL = [
+    ['Sound',[
+      ['inst','Instrument','s',Object.keys(INST)],
+      ['scale','Scale','s',Object.keys(SCALES)],
+      ['key','Key','s',KEYS],
+      ['oct','Octave','r',-1,2,1,0],
+      ['vol','Volume','r',0,100,1,80],
+      ['rev','Reverb','r',0,100,1,25],
+      ['chord','Chord mode (adds 3rd + 5th)','c',0],
+      ['dyn','Dynamics (more motion = louder)','c',1]]],
+    ['Rhythm',[
+      ['q','Quantize to beat','s',QS],
+      ['bpm','Tempo (BPM)','r',60,180,1,100],
+      ['cd','Retrigger delay (ms)','r',80,800,10,300]]],
+    ['Detection',[
+      ['seg','Notes (segments)','r',4,16,1,12],
+      ['sens','Sensitivity','r',0,100,1,60],
+      ['zone','Play zone height (%)','r',10,50,1,25],
+      ['spd','Video speed (x)','r',.25,2,.25,1],
+      ['mir','Mirror webcam','c',1]]],
+    ['Export',[['rec','Record & export MP4','c',0]]]
+  ];
+  const UNIT = {vol:'%',rev:'%',zone:'%',spd:'x',cd:' ms'};
+  const P = $('panel');
+  CTL.forEach(([h, items], gi) => {
+    const d = document.createElement('details'); d.open = gi < 3;
+    d.innerHTML = '<summary>' + h + '</summary>' + items.map(it => {
+      const [id, l, t] = it, s = SIMPLE.has(id) ? ' s' : '';
+      if (t === 's') return `<div class="row${s}"><label>${l}</label><select id="c_${id}">${it[3].map(o=>`<option>${o}</option>`).join('')}</select></div>`;
+      if (t === 'r') return `<div class="row${s}"><label>${l}<b id="v_${id}"></b></label><input type="range" id="c_${id}" min="${it[3]}" max="${it[4]}" step="${it[5]}" value="${it[6]}"></div>`;
+      return `<div class="row chk${s}"><input type="checkbox" id="c_${id}" ${it[3]?'checked':''}><label for="c_${id}">${l}</label></div>`;
+    }).join('');
+    P.appendChild(d);
+  });
+  $('preset').innerHTML = '<option value="">Custom</option>' + Object.keys(PRE).map(n => `<option>${n}</option>`).join('');
+
+  const g = id => { const e = $('c_' + id); return e.type === 'checkbox' ? e.checked : e.type === 'range' ? +e.value : e.value; };
+  function labels() { CTL.forEach(([, it]) => it.forEach(x => { if (x[2] === 'r') $('v_' + x[0]).textContent = ' ' + g(x[0]) + (UNIT[x[0]] || ''); })); }
+  function setVals(o) {
+    for (const k in o) { const e = $('c_' + k); if (!e) continue; if (e.type === 'checkbox') e.checked = !!o[k]; else e.value = o[k]; }
+  }
+  const SKEY = 'ts_v2', MKEY = 'ts_mode';
+  function save() { try { const o = {}; CTL.forEach(([, it]) => it.forEach(x => o[x[0]] = g(x[0]))); localStorage.setItem(SKEY, JSON.stringify(o)); } catch (e) {} }
+  try { const o = JSON.parse(localStorage.getItem(SKEY) || '{}'); delete o.rec; setVals(o); } catch (e) {}
+  labels();
+
+  // ---------- Normal / Pro mode ----------
+  function setMode(m) {
+    P.classList.toggle('normal', m === 'normal');
+    P.querySelectorAll('details').forEach((d, i) => {
+      d.hidden = m === 'normal' && !d.querySelector('.s');
+      d.open = m === 'normal' ? true : i < 3;
+    });
+    $('mNormal').classList.toggle('on', m === 'normal');
+    $('mPro').classList.toggle('on', m === 'pro');
+    try { localStorage.setItem(MKEY, m); } catch (e) {}
+  }
+  $('mNormal').addEventListener('click', () => setMode('normal'));
+  $('mPro').addEventListener('click', () => setMode('pro'));
+  let startMode = 'normal'; try { startMode = localStorage.getItem(MKEY) === 'pro' ? 'pro' : 'normal'; } catch (e) {}
+  setMode(startMode);
+
+  // ---------- Audio ----------
+  let actx, master, dry, wet, conv, comp, an, recDest, t0 = 0;
+  const cache = new Map(), scope = new Float32Array(1024);
+
+  function initAudio() {
+    if (actx) { actx.resume(); return; }
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    master = actx.createGain(); dry = actx.createGain(); wet = actx.createGain();
+    conv = actx.createConvolver(); comp = actx.createDynamicsCompressor();
+    an = actx.createAnalyser(); an.fftSize = 1024; recDest = actx.createMediaStreamDestination();
+    const sr = actx.sampleRate, n = (sr * 2) | 0, ir = actx.createBuffer(2, n, sr);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
+    conv.buffer = ir;
+    master.connect(dry); master.connect(conv); conv.connect(wet); dry.connect(comp); wet.connect(comp);
+    comp.connect(actx.destination); comp.connect(recDest); comp.connect(an);
+    t0 = actx.currentTime;
+  }
+  function applyMix() { if (!actx) return; const r = g('rev') / 100; master.gain.value = g('vol') / 100; dry.gain.value = 1 - r * .5; wet.gain.value = r * .9; }
+
+  function ks(f, n, sr) {
+    const L = Math.max(2, Math.round(sr / f)), d = new Float32Array(n), b = new Float32Array(L);
+    for (let i = 0; i < L; i++) b[i] = Math.random() * 2 - 1;
+    let p = 0; for (let i = 0; i < n; i++) { const j = (p + 1) % L; d[i] = b[p]; b[p] = .4985 * (b[p] + b[j]); p = j; }
+    return d;
+  }
+  function render(inst, f) {
+    const key = inst + f.toFixed(2), c = cache.get(key); if (c) return c;
+    const sr = actx.sampleRate, [dur, fn] = INST[inst], n = Math.floor(dur * sr);
+    const b = actx.createBuffer(1, n, sr), d = b.getChannelData(0);
+    if (fn) for (let i = 0; i < n; i++) d[i] = fn(f, i / sr); else d.set(ks(f, n, sr));
+    let pk = 0;
+    for (let i = 0; i < n; i++) { const t = i / sr; d[i] *= Math.min(1, t / .004) * Math.min(1, (dur - t) / .05); pk = Math.max(pk, Math.abs(d[i])); }
+    const k = .55 / (pk || 1); for (let i = 0; i < n; i++) d[i] *= k;
+    cache.set(key, b); return b;
+  }
+
+  // ---------- Session state ----------
+  let running = false, video = null, stream = null, objUrl = null, isCam = false, rate = 1;
+  let numSeg = 12, RH = 150, ROI_Y = 450, bufs = [], names = [], muted = [], lastPlayed = [], glow = [], parts = [];
+  let rafId = 0, rvfcId = 0, newFrame = false, lastT = 0, lastVT = 0, hasPrev = false;
+  let recorder = null, chunks = [], recMime = '';
+
+  function rebuild() {
+    numSeg = g('seg'); RH = Math.round(H * g('zone') / 100); ROI_Y = H - RH;
+    const steps = SCALES[g('scale')], L = steps.length, k0 = KEYS.indexOf(g('key')), k = k0 > 6 ? k0 - 12 : k0;
+    const oct = g('oct'), inst = g('inst'), total = numSeg + (g('chord') ? 4 : 0);
+    bufs = []; names = [];
+    for (let d = 0; d < total; d++) {
+      const semi = k + 12 * oct + steps[d % L] + 12 * Math.floor(d / L);
+      bufs.push(render(inst, BASE_C * Math.pow(2, semi / 12)));
+      const m = 60 + semi; names.push(KEYS[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1));
+    }
+    if (muted.length !== numSeg) { muted = new Array(numSeg).fill(false); lastPlayed = new Array(numSeg).fill(0); glow = new Array(numSeg).fill(0); }
+    hasPrev = false; status();
+  }
+  function status() {
+    $('status').innerHTML = (recorder ? '<span class="rec">● REC</span> &nbsp;' : '') + g('inst') + ' · ' + g('scale') + ' in ' + g('key') + ' · ' + numSeg + ' notes';
+  }
+
+  function playNote(i, vel) {
+    const gd = [0, 2, 4][QS.indexOf(g('q'))];
+    let when = actx.currentTime;
+    if (gd) { const gs = 60 / g('bpm') / gd; when = t0 + Math.ceil((when - t0) / gs) * gs; }
+    const ds = g('chord') ? [[i,1],[i+2,.55],[i+4,.5]] : [[i,1]];
+    for (const [d, m] of ds) {
+      const s = actx.createBufferSource(), gn = actx.createGain();
+      s.buffer = bufs[d]; gn.gain.value = vel * m; s.connect(gn); gn.connect(master); s.start(when);
+    }
+  }
+
+  // ---------- Image processing ----------
+  const gray = new Uint8Array(MAXN), blurred = new Uint8Array(MAXN), prevBuf = new Uint8Array(MAXN);
+  const tmpF = new Float32Array(MAXN), padRow = new Float32Array(W + 20), acc = new Float32Array(W);
+  const maskA = new Uint8Array(MAXN), maskB = new Uint8Array(MAXN);
+  const R = 10, K = new Float32Array(21);
+  (() => { const s = 3.5; let sum = 0; for (let i = -R; i <= R; i++) { K[i+R] = exp(-(i*i)/(2*s*s)); sum += K[i+R]; } for (let i = 0; i < 21; i++) K[i] /= sum; })();
+
+  function toGray(rgba) { for (let i = 0, p = 0, N = W * RH; i < N; i++, p += 4) gray[i] = (rgba[p]*299 + rgba[p+1]*587 + rgba[p+2]*114) / 1000; }
+  function gaussBlur(src, dst) {
+    for (let y = 0; y < RH; y++) {
+      const b = y * W;
+      for (let x = 0; x < W; x++) padRow[R + x] = src[b + x];
+      for (let k = 1; k <= R; k++) { padRow[R - k] = src[b + k]; padRow[R + W - 1 + k] = src[b + W - 1 - k]; }
+      for (let x = 0; x < W; x++) { let s = 0; for (let k = 0; k < 21; k++) s += padRow[x + k] * K[k]; tmpF[b + x] = s; }
+    }
+    for (let y = 0; y < RH; y++) {
+      acc.fill(0);
+      for (let k = -R; k <= R; k++) {
+        let yy = y + k; if (yy < 0) yy = -yy; else if (yy >= RH) yy = 2 * RH - 2 - yy;
+        const off = yy * W, kv = K[k + R]; for (let x = 0; x < W; x++) acc[x] += tmpF[off + x] * kv;
+      }
+      const o = y * W; for (let x = 0; x < W; x++) dst[o + x] = acc[x] + .5;
+    }
+  }
+  function dilate5(m, tmp) {
+    for (let y = 0; y < RH; y++) { const b = y * W; for (let x = 0; x < W; x++) { let v = 0; for (let k = -2; k <= 2; k++) { const xx = x + k; if (xx >= 0 && xx < W && m[b + xx]) { v = 1; break; } } tmp[b + x] = v; } }
+    for (let y = 0; y < RH; y++) { const b = y * W; for (let x = 0; x < W; x++) { let v = 0; for (let k = -2; k <= 2; k++) { const yy = y + k; if (yy >= 0 && yy < RH && tmp[yy * W + x]) { v = 1; break; } } m[b + x] = v; } }
+  }
+  function countCols(m, xs, xe) { let c = 0; for (let y = 0; y < RH; y++) { const b = y * W; for (let x = xs; x < xe; x++) c += m[b + x]; } return c; }
+
+  // ---------- Start / loop ----------
+  function pickMime() {
+    const l = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc3.42E01E,mp4a.40.2','video/mp4'];
+    return l.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  }
+
+  async function start(source) {
+    $('msg').textContent = '';
+    initAudio(); applyMix(); isCam = source === 'cam'; rate = isCam ? 1 : g('spd'); rebuild();
+    video = document.createElement('video');
+    video.muted = true; video.playsInline = true; video.defaultPlaybackRate = video.playbackRate = rate;
+    video.loop = !isCam;                                   // video files loop until the user stops
+    video.addEventListener('ratechange', () => { if (video && video.playbackRate !== rate) video.playbackRate = rate; });
+    video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none';
+    document.body.appendChild(video);
+    try {
+      if (isCam) { stream = await navigator.mediaDevices.getUserMedia({ video: { width: 800, height: 600 }, audio: false }); video.srcObject = stream; }
+      else { objUrl = URL.createObjectURL(source); video.src = objUrl; }
+      await video.play(); video.playbackRate = rate;
+    } catch (e) {
+      cleanupSource();
+      $('msg').textContent = (isCam ? 'Could not open webcam: ' : 'Could not play that video: ') + e.message + (isCam ? ' (needs https or localhost)' : '');
+      return;
+    }
+    hasPrev = false; parts = []; chunks = []; recorder = null; lastT = performance.now() / 1000; lastVT = 0;
+    recMime = pickMime();
+    if (g('rec') && recMime) {
+      const ms = new MediaStream([...cv.captureStream(FPS).getVideoTracks(), ...recDest.stream.getAudioTracks()]);
+      try {
+        recorder = new MediaRecorder(ms, { mimeType: recMime, videoBitsPerSecond: 6e6 });
+        recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        recorder.start(250);
+      } catch (e) { recorder = null; $('msg').textContent = 'Recording not supported here; continuing without it.'; }
+    }
+    $('idle').hidden = true; $('result').hidden = true; $('btnStop').hidden = false; $('btnStop').disabled = false;
+    status(); running = true;
+    schedule();
+  }
+
+  function schedule() {
+    if (!running) return;
+    if (video.requestVideoFrameCallback) {
+      const onF = () => { newFrame = true; if (running && video) rvfcId = video.requestVideoFrameCallback(onF); };
+      rvfcId = video.requestVideoFrameCallback(onF);
+    }
+    const loop = () => {
+      if (!running) return;
+      step(!video.requestVideoFrameCallback || newFrame);   // detect on new video frames only
+      newFrame = false;
+      rafId = requestAnimationFrame(loop);                  // steady redraw keeps recording full length at any speed
+    };
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function hue(i) { return (200 + i * 300 / numSeg) % 360; }
+  function spawn(i, sw, v) {
+    for (let k = 0; k < 6; k++) parts.push({ x: i*sw + Math.random()*sw, y: ROI_Y, vx: (Math.random()-.5)*60, vy: -60 - Math.random()*120*v, l: 1, h: hue(i) });
+    if (parts.length > 300) parts.splice(0, parts.length - 300);
+  }
+
+  function step(detect) {
+    ctx.globalAlpha = 1;
+    if (isCam && g('mir')) { ctx.save(); ctx.translate(W, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, W, H); ctx.restore(); }
+    else ctx.drawImage(video, 0, 0, W, H);
+    const sw = Math.floor(W / numSeg), now = performance.now() / 1000, dt = Math.min(.1, now - lastT); lastT = now;
+
+    // video looped back to the start: drop the previous frame so the jump doesn't trigger notes
+    if (!isCam) { if (video.currentTime < lastVT - .3) hasPrev = false; lastVT = video.currentTime; }
+
+    if (detect) {
+      toGray(ctx.getImageData(0, ROI_Y, W, RH).data); gaussBlur(gray, blurred);
+      const N = W * RH;
+      if (hasPrev) {
+        for (let i = 0; i < N; i++) maskA[i] = Math.abs(blurred[i] - prevBuf[i]) > 25 ? 1 : 0;
+        dilate5(maskA, maskB);
+        const thr = sw * RH * (.1 - .00083 * g('sens')), cd = g('cd') / 1000;
+        for (let i = 0; i < numSeg; i++) {
+          const c = countCols(maskA, i * sw, (i + 1) * sw);
+          if (c > thr && !muted[i] && now - lastPlayed[i] > cd) {
+            const v = g('dyn') ? .4 + .6 * Math.min(1, Math.sqrt((c - thr) / (thr * 3))) : .8;
+            playNote(i, v); lastPlayed[i] = now; glow[i] = 1; spawn(i, sw, v);
+          }
+        }
+      }
+      prevBuf.set(blurred.subarray(0, N)); hasPrev = true;
+    }
+
+    // zones
+    ctx.textAlign = 'center'; ctx.font = 'bold 13px "Courier New",monospace';
+    for (let i = 0; i < numSeg; i++) {
+      const x = i * sw; glow[i] = Math.max(0, glow[i] - dt * 2.5);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgba(255,255,255,${muted[i] ? .03 : .08 + glow[i] * .6})`; ctx.fillRect(x, ROI_Y, sw, RH);
+      ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x, ROI_Y, 1, RH);
+      ctx.fillStyle = muted[i] ? 'rgba(255,255,255,.35)' : '#fff'; ctx.fillText(muted[i] ? '✕' : names[i], x + sw / 2, H - 10);
+    }
+    ctx.fillStyle = 'rgba(255,220,80,.9)'; ctx.fillRect(0, ROI_Y - 1, W, 2);
+
+    // particles
+    parts = parts.filter(p => p.l > 0);
+    for (const p of parts) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; p.l -= dt * 1.4;
+      ctx.fillStyle = `rgba(255,255,255,${Math.max(0, p.l)})`; const ps = 2 + Math.round(4 * Math.max(0, p.l)); ctx.fillRect(Math.round(p.x / 2) * 2, Math.round(p.y / 2) * 2, ps, ps);
+    }
+
+    // live waveform
+    an.getFloatTimeDomainData(scope);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let j = 0; j < 1024; j += 4) { const x = j / 1023 * W, y = ROI_Y - 50 + scope[j] * 90; j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke();
+
+    // branding + info
+    ctx.textAlign = 'left'; ctx.globalAlpha = .75; ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "Courier New",monospace';
+    ctx.fillText(g('inst') + ' · ' + g('scale') + ' in ' + g('key'), 10, 24);
+    ctx.font = 'bold 16px "Courier New",monospace';
+    const brand = 'traffic symphony by rajat'; ctx.fillText(brand, W - ctx.measureText(brand).width - 10, 28);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- Finish / export ----------
+  function cleanupSource() {
+    if (rvfcId && video && video.cancelVideoFrameCallback) video.cancelVideoFrameCallback(rvfcId);
+    cancelAnimationFrame(rafId);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (video) { video.pause(); video.removeAttribute('src'); video.srcObject = null; video.remove(); }
+    if (objUrl) URL.revokeObjectURL(objUrl);
+    stream = null; objUrl = null; video = null;
+  }
+  function finish() {
+    if (!running) return;
+    running = false; cleanupSource();
+    if (recorder && recorder.state !== 'inactive') {
+      $('status').textContent = 'Finalizing export...'; $('btnStop').disabled = true;
+      setTimeout(() => {                       // let the last notes and reverb ring out
+        recorder.onstop = () => showResult();
+        try { recorder.requestData(); } catch (e) {}
+        recorder.stop();
+      }, 1500);
+    } else backToIdle();
+  }
+  function showResult() {
+    const type = (recorder.mimeType || recMime || 'video/mp4').split(';')[0];
+    const blob = new Blob(chunks, { type }), url = URL.createObjectURL(blob);
+    const name = `TrafficSymphony_Export_${Math.floor(Date.now() / 1000)}.${type.includes('mp4') ? 'mp4' : 'webm'}`;
+    $('resVid').src = url; $('dl').href = url; $('dl').download = name;
+    $('resNote').textContent = `${name} (${(blob.size / 1048576).toFixed(1)} MB)`;
+    $('idle').hidden = true; $('result').hidden = false; $('btnStop').hidden = true; recorder = null; status();
+    $('dl').click();
+  }
+  function backToIdle() {
+    $('result').hidden = true; $('idle').hidden = false; $('btnStop').hidden = true; recorder = null; status();
+    const rv = $('resVid'); rv.pause(); rv.removeAttribute('src');
+  }
+
+  // ---------- UI wiring ----------
+  const REBUILD = ['inst','scale','key','oct','chord','seg','zone'];
+  function onChange(e) {
+    const id = e ? e.target.id.slice(2) : 'seg';
+    labels(); save(); applyMix();
+    if (!running) return;
+    if (id === 'spd' && !isCam) { rate = g('spd'); video.playbackRate = rate; }
+    else if (REBUILD.includes(id)) rebuild();
+  }
+  P.addEventListener('input', e => {
+    if (e.target.id === 'preset') { const p = PRE[e.target.value]; if (p) { setVals(p); onChange(); } return; }
+    $('preset').value = ''; onChange(e);
+  });
+  if (!pickMime()) { const c = $('c_rec'); c.disabled = true; c.checked = false; c.nextElementSibling.textContent += ' (MP4 not supported in this browser)'; }
+
+  $('btnCam').addEventListener('click', () => start('cam'));
+  $('btnVid').addEventListener('click', () => $('fileIn').click());
+  $('fileIn').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) start(f); });
+  $('btnStop').addEventListener('click', finish);
+  $('btnBack').addEventListener('click', backToIdle);
+  $('stage').addEventListener('dragover', e => e.preventDefault());
+  $('stage').addEventListener('drop', e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && !running && f.type.startsWith('video/')) start(f); });
+  cv.addEventListener('click', e => {
+    if (!running) return;
+    const r = cv.getBoundingClientRect(), i = Math.floor((e.clientX - r.left) / r.width * W / Math.floor(W / numSeg));
+    if (i >= 0 && i < numSeg) muted[i] = !muted[i];
+  });
+  document.addEventListener('keydown', e => { if (running && (e.key === 'q' || e.key === 'Q' || e.key === 'Escape')) finish(); });
+  status();
+})();
+</script>
+</body>
+</html>
